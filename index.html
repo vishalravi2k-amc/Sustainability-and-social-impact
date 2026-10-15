@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VisionCore — AI Environmental Awareness & Waypoint Navigation Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            space: '#030712',
+            cyanGlow: '#06b6d4',
+            purpleGlow: '#8b5cf6',
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #030712;
+      color: #f8fafc;
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+    }
+    .glass {
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+    }
+    .glass-strong {
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+    }
+    .scan-line {
+      position: absolute;
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #06b6d4, transparent);
+      box-shadow: 0 0 12px #06b6d4;
+      animation: scanAnim 3s ease-in-out infinite alternate;
+    }
+    @keyframes scanAnim {
+      0% { top: 0%; opacity: 0.2; }
+      50% { opacity: 0.9; }
+      100% { top: 98%; opacity: 0.2; }
+    }
+    .blink {
+      animation: blinker 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes blinker {
+      50% { opacity: 0; }
+    }
+    .tech-grid {
+      background-image: 
+        linear-gradient(rgba(6, 182, 212, 0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(6, 182, 212, 0.06) 1px, transparent 1px);
+      background-size: 32px 32px;
+    }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.02); }
+    ::-webkit-scrollbar-thumb { background: #06b6d4; border-radius: 9999px; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-[#030712] text-slate-100">
+
+  <!-- Ambient background glow lights -->
+  <div class="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+    <div class="absolute -top-[20%] -left-[10%] w-[550px] h-[550px] rounded-full blur-[140px] opacity-25" style="background: radial-gradient(circle, #06b6d4 0%, transparent 70%);"></div>
+    <div class="absolute top-[40%] -right-[15%] w-[600px] h-[600px] rounded-full blur-[150px] opacity-20" style="background: radial-gradient(circle, #8b5cf6 0%, transparent 70%);"></div>
+  </div>
+
+  <!-- Header -->
+  <header class="sticky top-0 z-50 glass border-b border-white/10 px-6 py-3.5 flex items-center justify-between flex-wrap gap-4">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl flex items-center justify-center border border-cyan-400/40 shadow-[0_0_16px_rgba(6,182,212,0.3)]" style="background: linear-gradient(135deg, rgba(6,182,212,0.2), rgba(139,92,246,0.2));">
+        <svg class="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+        </svg>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="text-lg font-extrabold tracking-tight bg-gradient-to-r from-cyan-400 via-purple-300 to-cyan-200 bg-clip-text text-transparent">VisionCore</span>
+          <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 font-semibold">WAYPOINT AI v1.2</span>
+        </div>
+        <p class="text-xs text-slate-400 font-mono">AMC Engineering College (Autonomous) • Dept. CSE (AIML)</p>
+      </div>
+    </div>
+
+    <!-- Center Clock -->
+    <div class="hidden md:flex flex-col items-center">
+      <div id="liveClock" class="font-mono text-sm font-bold text-slate-200 tracking-wider">--:--:--</div>
+      <div id="liveDate" class="text-[10px] text-slate-400 font-mono">Loading...</div>
+    </div>
+
+    <!-- Right System Controls -->
+    <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-black/40 border border-white/10 text-xs font-mono">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#10b981] animate-pulse"></span>
+        <span class="text-emerald-300 font-semibold">SYSTEM ACTIVE</span>
+      </div>
+
+      <!-- Live Voice Toggle -->
+      <button id="voiceToggleBtn" onclick="toggleVoice()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-950/40 border border-cyan-800/60 text-xs font-mono text-cyan-300 hover:border-cyan-400 transition-all">
+        <svg id="voiceIcon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path></svg>
+        <span id="voiceStatusText">VOICE ON</span>
+      </button>
+
+      <!-- Track Badge -->
+      <div class="px-2.5 py-1 rounded-md text-[11px] font-mono font-bold bg-purple-500/15 border border-purple-500/30 text-purple-300">
+        TRACK 3
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <main class="flex-1 max-w-[1720px] w-full mx-auto p-4 sm:p-6 flex flex-col gap-5 z-10">
+
+    <!-- Project Ribbon -->
+    <div class="glass p-3 rounded-xl flex items-center justify-between flex-wrap gap-3 border border-white/10">
+      <div class="flex items-center gap-3">
+        <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#06b6d4]"></span>
+        <div>
+          <span class="text-xs font-mono font-bold text-cyan-300">HackAttack AMCEC — Track 3: Sustainability, Social Impact & Accessibility Technology</span>
+          <p class="text-[11px] text-slate-400">Institutional High-Precision Topological Waypoint Navigation & Spatial Environmental Awareness Engine</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 text-xs font-mono">
+        <span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Dual TTS: gTTS + Narakeet</span>
+        <span class="px-2 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20">Grok AI Spatial Reasoning</span>
+      </div>
+    </div>
+
+    <!-- Upper Layout: Camera Feed Simulator + Waypoint HUD + Scenarios -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+      <!-- Left Column (8 Cols): Camera + HUD -->
+      <div class="lg:col-span-8 flex flex-col gap-5">
+        
+        <!-- Camera Feed Simulator -->
+        <div class="glass rounded-2xl overflow-hidden border border-cyan-500/30 shadow-[0_0_24px_rgba(6,182,212,0.1)] flex flex-col">
+          <!-- Feed Topbar -->
+          <div class="flex items-center justify-between px-4 py-2.5 border-b border-white/10 text-xs font-mono">
+            <div class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+              <span class="font-bold text-white">Live Environmental Optical Feed</span>
+              <span id="activeScenarioBadge" class="px-2 py-0.5 rounded-full bg-cyan-950/80 text-cyan-300 border border-cyan-800 text-[10px]">AWAITING SCENARIO</span>
+            </div>
+            <div class="flex items-center gap-3 text-slate-400">
+              <span>1920×1080</span>
+              <span class="text-cyan-400 font-semibold">24 FPS</span>
+              <div class="flex items-center gap-1.5 px-2 py-0.5 rounded bg-red-500/20 border border-red-500/40 text-red-400 font-bold">
+                <span class="w-1.5 h-1.5 rounded-full bg-red-400 blink"></span>
+                <span>LIVE</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Video Simulation Area -->
+          <div id="cameraViewport" class="relative w-full h-[320px] tech-grid flex items-center justify-center overflow-hidden" style="background: radial-gradient(ellipse at 50% 50%, rgba(6,182,212,0.06) 0%, rgba(3,7,18,0.95) 75%);">
+            <!-- Animated Scan Line -->
+            <div class="scan-line"></div>
+
+            <!-- Viewfinder Brackets -->
+            <div class="absolute top-4 left-4 w-6 h-6 border-t-2 border-l-2 border-cyan-400"></div>
+            <div class="absolute top-4 right-4 w-6 h-6 border-t-2 border-r-2 border-cyan-400"></div>
+            <div class="absolute bottom-4 left-4 w-6 h-6 border-b-2 border-l-2 border-cyan-400"></div>
+            <div class="absolute bottom-4 right-4 w-6 h-6 border-b-2 border-r-2 border-cyan-400"></div>
+
+            <!-- Default Crosshair Placeholder -->
+            <div id="cameraIdlePlaceholder" class="flex flex-col items-center gap-2 text-center z-10 transition-opacity duration-300">
+              <svg class="w-14 h-14 text-cyan-400/80 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+              <span class="text-sm font-mono font-bold text-cyan-300 tracking-wider">AWAITING WAYPOINT SCENARIO TRIGGER</span>
+              <span class="text-xs text-slate-500">Select a scenario on the right to demonstrate accessibility navigation</span>
+            </div>
+
+            <!-- SVG Bounding Box Canvas -->
+            <svg id="boundingBoxSvg" class="absolute inset-0 w-full h-full pointer-events-none z-20"></svg>
+          </div>
+
+          <!-- Feed Bottom Status -->
+          <div class="flex items-center justify-between px-4 py-2 border-t border-white/5 text-xs font-mono bg-black/30">
+            <div class="flex items-center gap-4 text-slate-300">
+              <span>Detections: <strong id="feedDetectionCount" class="text-cyan-400">0</strong></span>
+              <span>Matched Anchors: <strong id="feedAnchorText" class="text-purple-300">None</strong></span>
+            </div>
+            <div class="text-[11px] text-slate-400">
+              OpenCV 4.9 • Pytesseract OCR • Topological Graph Engine
+            </div>
+          </div>
+        </div>
+
+        <!-- Waypoint Navigation HUD & Topological Radar -->
+        <div id="waypointHudContainer" class="glass rounded-2xl overflow-hidden border border-cyan-500/30 shadow-[0_0_24px_rgba(6,182,212,0.1)] flex flex-col p-4 gap-4">
+          
+          <!-- Top Row: Current Location and Bearing -->
+          <div class="flex items-center justify-between flex-wrap gap-2 pb-3 border-b border-white/10">
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-xl flex items-center justify-center bg-cyan-500/10 border border-cyan-400/30 text-cyan-400">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-mono font-bold text-cyan-400">TOPOLOGICAL WAYPOINT SYSTEM</span>
+                  <span class="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 font-mono">LOCALIZED 98%</span>
+                </div>
+                <div class="text-sm font-bold text-white flex items-center gap-1.5">
+                  <span id="hudCurrentNode">WP-102 (Central Corridor Junction North)</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3 font-mono text-xs text-right">
+              <div>
+                <div class="text-[10px] text-slate-400">AMC CSE(AIML) WING</div>
+                <div class="text-slate-300">Floor 2 • Academic Block B</div>
+              </div>
+              <div id="hudHeadingBadge" class="px-2.5 py-1 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold">
+                BEARING 000° N
+              </div>
+            </div>
+          </div>
+
+          <!-- Radar and Vector Grid -->
+          <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+            
+            <!-- Radar Minimap (7 Cols) -->
+            <div class="md:col-span-7 rounded-xl p-3 bg-black/60 border border-white/10 flex flex-col justify-between">
+              <div class="flex items-center justify-between text-xs font-mono text-slate-400 mb-1">
+                <span class="flex items-center gap-1 text-cyan-400">
+                  <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+                  INDOOR TOPOLOGICAL RADAR
+                </span>
+                <span class="text-[10px] text-slate-500">SCALE: 1m = 18px</span>
+              </div>
+
+              <!-- SVG Radar Graphic -->
+              <div class="relative w-full h-[200px] flex items-center justify-center">
+                <svg viewBox="0 0 280 230" class="w-full h-full max-h-[200px]">
+                  <!-- Radar rings -->
+                  <circle cx="140" cy="145" r="40" fill="none" stroke="rgba(6,182,212,0.12)" stroke-dasharray="3 3"/>
+                  <circle cx="140" cy="145" r="75" fill="none" stroke="rgba(6,182,212,0.08)" stroke-dasharray="4 4"/>
+                  <circle cx="140" cy="145" r="110" fill="none" stroke="rgba(6,182,212,0.05)"/>
+
+                  <!-- Hallway corridor paths -->
+                  <line x1="140" y1="215" x2="140" y2="25" stroke="rgba(255,255,255,0.12)" stroke-width="7" stroke-linecap="round"/>
+                  <line x1="140" y1="145" x2="45" y2="145" stroke="rgba(255,255,255,0.12)" stroke-width="7" stroke-linecap="round"/>
+                  <line x1="140" y1="80" x2="230" y2="80" stroke="rgba(255,255,255,0.12)" stroke-width="7" stroke-linecap="round"/>
+
+                  <!-- Dynamic Route Polyline -->
+                  <polyline id="radarRoutePolyline" points="140,145 140,80 230,80" fill="none" stroke="#06b6d4" stroke-width="3" stroke-dasharray="5 3"/>
+
+                  <!-- Dynamic Obstacle Marker on Radar -->
+                  <g id="radarObstacleGroup" style="display: none;">
+                    <rect x="132" y="105" width="16" height="16" rx="3" fill="#ef4444" stroke="#ffffff" stroke-width="1.5"/>
+                    <text x="140" y="117" text-anchor="middle" fill="#ffffff" font-size="11" font-weight="bold">!</text>
+                    <path d="M 140 135 Q 110 115 140 95" fill="none" stroke="#10b981" stroke-width="2.5" stroke-dasharray="3 2"/>
+                    <text x="95" y="118" fill="#10b981" font-size="8" font-family="monospace">-0.8m BYPASS</text>
+                  </g>
+
+                  <!-- Waypoints -->
+                  <!-- WP-101 Foyer -->
+                  <circle cx="140" cy="215" r="5" fill="#64748b"/>
+                  <text x="140" y="228" text-anchor="middle" fill="#94a3b8" font-size="8" font-family="monospace">WP-101 (Foyer)</text>
+
+                  <!-- WP-102 User Current -->
+                  <circle cx="140" cy="145" r="7" fill="#06b6d4" stroke="#ffffff" stroke-width="2"/>
+                  <polygon points="135,138 140,126 145,138" fill="#22d3ee"/>
+                  <text x="140" y="160" text-anchor="middle" fill="#22d3ee" font-size="8.5" font-family="monospace" font-weight="bold">WP-102 (YOU)</text>
+
+                  <!-- WP-103 Room 204 -->
+                  <circle id="nodeWp103" cx="45" cy="145" r="5" fill="#8b5cf6"/>
+                  <text x="45" y="135" text-anchor="middle" fill="#c084fc" font-size="8" font-family="monospace">WP-103 (Lab 204)</text>
+
+                  <!-- WP-104 Washroom Junction -->
+                  <circle id="nodeWp104" cx="140" cy="80" r="5.5" fill="#06b6d4"/>
+                  <text x="140" y="70" text-anchor="middle" fill="#67e8f9" font-size="8" font-family="monospace">WP-104 (Sign)</text>
+
+                  <!-- WP-105 Restroom -->
+                  <circle id="nodeWp105" cx="230" cy="80" r="6" fill="#10b981" stroke="#ffffff" stroke-width="1.5"/>
+                  <circle cx="230" cy="80" r="14" fill="none" stroke="#10b981" stroke-width="1.5" opacity="0.6">
+                    <animate attributeName="r" values="8;16;8" dur="2s" repeatCount="indefinite"/>
+                    <animate attributeName="opacity" values="0.8;0.2;0.8" dur="2s" repeatCount="indefinite"/>
+                  </circle>
+                  <text x="230" y="70" text-anchor="middle" fill="#34d399" font-size="8.5" font-family="monospace" font-weight="bold">WP-105 (Restroom)</text>
+
+                  <!-- WP-106 Fire Exit -->
+                  <circle id="nodeWp106" cx="140" cy="25" r="5" fill="#ef4444"/>
+                  <text x="140" y="16" text-anchor="middle" fill="#f87171" font-size="8" font-family="monospace">WP-106 (Fire Exit)</text>
+                </svg>
+              </div>
+
+              <!-- Quick Target Selector -->
+              <div class="flex items-center gap-1.5 pt-2 border-t border-white/5 flex-wrap">
+                <span class="text-[9px] font-mono text-slate-400">WAYPOINT TARGET:</span>
+                <button onclick="setDestination('washroom')" class="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-950/60 border border-cyan-700/60 text-cyan-300 hover:border-cyan-400">WP-105 Restroom</button>
+                <button onclick="setDestination('signs')" class="px-2 py-0.5 rounded text-[10px] font-mono bg-purple-950/60 border border-purple-700/60 text-purple-300 hover:border-purple-400">WP-103 Room 204</button>
+                <button onclick="setDestination('obstacles')" class="px-2 py-0.5 rounded text-[10px] font-mono bg-red-950/60 border border-red-700/60 text-red-300 hover:border-red-400">Obstacle Test</button>
+              </div>
+            </div>
+
+            <!-- Vector & Corridor Card (5 Cols) -->
+            <div class="md:col-span-5 flex flex-col justify-between gap-3">
+              
+              <!-- Destination Box -->
+              <div class="p-3 rounded-xl bg-purple-950/20 border border-purple-500/30">
+                <div class="flex items-center justify-between text-xs font-mono text-purple-300 mb-1">
+                  <span>ACTIVE TARGET NODE</span>
+                  <span id="hudTargetNodeBadge" class="bg-purple-900/60 px-1.5 py-0.2 rounded border border-purple-700 text-[10px]">WP-105</span>
+                </div>
+                <div id="hudTargetNodeName" class="text-sm font-bold text-white">Accessible Restroom & Amenities</div>
+                <div class="text-[11px] text-slate-400 font-mono mt-0.5">Floor 2 (AIML Wing), Zone D</div>
+
+                <div class="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-purple-500/20">
+                  <div>
+                    <div class="text-[9px] text-slate-400 font-mono">VECTOR DISTANCE</div>
+                    <div id="hudDistanceValue" class="text-base font-bold font-mono text-cyan-300">3.8 <span class="text-xs font-normal">meters</span></div>
+                  </div>
+                  <div>
+                    <div class="text-[9px] text-slate-400 font-mono">EST. WALKING TIME</div>
+                    <div id="hudWalkingTime" class="text-base font-bold font-mono text-purple-300">~3.5 <span class="text-xs font-normal">sec</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Vector Turn Guidance -->
+              <div class="p-3 rounded-xl bg-cyan-950/20 border border-cyan-500/30">
+                <div class="flex items-center justify-between mb-1 text-xs font-mono">
+                  <span class="text-cyan-300 font-bold">TURN GUIDANCE</span>
+                  <span id="hudClockFaceBadge" class="px-1.5 py-0.2 rounded bg-cyan-900/60 text-cyan-200 border border-cyan-700 text-[10px]">1 O'CLOCK</span>
+                </div>
+                <p id="hudTurnInstruction" class="text-xs text-white font-medium">Veer slightly right, advance 3.5m, then turn 90° right at WP-104.</p>
+              </div>
+
+              <!-- Corridor Clearance Banner -->
+              <div id="corridorBanner" class="p-3 rounded-xl bg-emerald-950/20 border border-emerald-500/30">
+                <div class="flex items-center justify-between text-xs font-mono font-bold text-emerald-400 mb-0.5">
+                  <span id="corridorStatusTitle">CORRIDOR: CLEAR</span>
+                  <span id="corridorObstacleCount" class="text-[10px] text-slate-400">0 hazards</span>
+                </div>
+                <p id="corridorManeuverText" class="text-xs text-slate-200">Path corridor is clear. Maintain forward bearing.</p>
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- Right Column (4 Cols): Scenario Triggers & Controls -->
+      <div class="lg:col-span-4 flex flex-col gap-4">
+
+        <div class="glass rounded-2xl p-5 border border-purple-500/30 shadow-[0_0_24px_rgba(139,92,246,0.1)] flex flex-col gap-4">
+          
+          <div class="flex items-center justify-between pb-3 border-b border-white/10">
+            <div class="flex items-center gap-2">
+              <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+              <h2 class="text-base font-bold text-white tracking-wide">Accessibility Scenarios</h2>
+            </div>
+            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20 font-bold">DEMO TRIGGER</span>
+          </div>
+
+          <!-- Scenario 1: Washroom -->
+          <button onclick="triggerScenario('washroom')" class="w-full text-left p-4 rounded-xl glass hover:bg-cyan-950/40 border border-cyan-500/30 transition-all hover:scale-[1.01] active:scale-[0.99] group relative overflow-hidden">
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 rounded-lg flex items-center justify-center bg-cyan-500/15 border border-cyan-400/30 text-cyan-400 flex-shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between gap-1 mb-1">
+                  <span class="text-sm font-bold text-white group-hover:text-cyan-300 transition-colors">Finding a Washroom</span>
+                  <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">NODE WP-105</span>
+                </div>
+                <p class="text-xs text-slate-400 leading-relaxed">Detects washroom visual anchor & provides turn-by-turn waypoint vector guidance.</p>
+              </div>
+            </div>
+          </button>
+
+          <!-- Scenario 2: Reading Signs -->
+          <button onclick="triggerScenario('signs')" class="w-full text-left p-4 rounded-xl glass hover:bg-purple-950/40 border border-purple-500/30 transition-all hover:scale-[1.01] active:scale-[0.99] group relative overflow-hidden">
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 rounded-lg flex items-center justify-center bg-purple-500/15 border border-purple-400/30 text-purple-400 flex-shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between gap-1 mb-1">
+                  <span class="text-sm font-bold text-white group-hover:text-purple-300 transition-colors">Reading Signs & Text</span>
+                  <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40">NODE WP-103</span>
+                </div>
+                <p class="text-xs text-slate-400 leading-relaxed">OCR scans text signage & binds them to Room 204 AI Lab & Fire Exit landmarks.</p>
+              </div>
+            </div>
+          </button>
+
+          <!-- Scenario 3: Obstacle Awareness -->
+          <button onclick="triggerScenario('obstacles')" class="w-full text-left p-4 rounded-xl glass hover:bg-red-950/40 border border-red-500/30 transition-all hover:scale-[1.01] active:scale-[0.99] group relative overflow-hidden">
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 rounded-lg flex items-center justify-center bg-red-500/15 border border-red-400/30 text-red-400 flex-shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between gap-1 mb-1">
+                  <span class="text-sm font-bold text-white group-hover:text-red-300 transition-colors">Obstacle Awareness Alerts</span>
+                  <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 border border-red-500/40">BYPASS -0.8m</span>
+                </div>
+                <p class="text-xs text-slate-400 leading-relaxed">Detects corridor obstacles & issues urgent lateral bypass vector directives.</p>
+              </div>
+            </div>
+          </button>
+
+          <!-- Dual Voice Engine Box -->
+          <div class="p-3.5 rounded-xl bg-black/40 border border-white/10 flex flex-col gap-2.5">
+            <div class="flex items-center justify-between text-xs font-mono font-bold text-slate-300">
+              <span>TTS SPEECH SYNTHESIS ENGINE</span>
+              <span id="selectedEngineBadge" class="text-[10px] text-cyan-300 bg-cyan-950 px-1.5 py-0.5 rounded border border-cyan-800">gTTS ACTIVE</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+              <button onclick="setEngine('gtts')" id="btnGtts" class="p-2 rounded-lg bg-cyan-500/15 border border-cyan-400 text-cyan-200 text-left">
+                <div class="font-bold">gTTS (Google)</div>
+                <div class="text-[10px] text-slate-400">Offline Python Core</div>
+              </button>
+              <button onclick="setEngine('narakeet')" id="btnNarakeet" class="p-2 rounded-lg bg-white/5 border border-white/10 text-slate-400 text-left hover:text-white">
+                <div class="font-bold">Narakeet API</div>
+                <div class="text-[10px] text-slate-500">Mickey Voice Stream</div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Engine Status Indicators -->
+          <div class="p-3 rounded-xl bg-black/40 border border-white/5 text-[11px] font-mono">
+            <div class="text-slate-400 uppercase tracking-wider mb-2 font-bold text-[10px]">SYSTEM MODULES</div>
+            <div class="grid grid-cols-2 gap-2">
+              <div class="flex items-center justify-between p-1.5 rounded bg-white/5">
+                <span>Waypoint Engine</span>
+                <span class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_#10b981]"></span>
+              </div>
+              <div class="flex items-center justify-between p-1.5 rounded bg-white/5">
+                <span>Vision Pipeline</span>
+                <span class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_#10b981]"></span>
+              </div>
+              <div class="flex items-center justify-between p-1.5 rounded bg-white/5">
+                <span>OCR Engine</span>
+                <span class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_#10b981]"></span>
+              </div>
+              <div class="flex items-center justify-between p-1.5 rounded bg-white/5">
+                <span>Dual TTS Engine</span>
+                <span class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_#10b981]"></span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Lower Layout: Audio Transcript & Live Detections Feed + Metrics -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+      
+      <!-- Transcript Feed (7 Cols) -->
+      <div class="lg:col-span-7 glass rounded-2xl p-5 border border-white/10 flex flex-col gap-3 min-h-[380px]">
+        <div class="flex items-center justify-between pb-3 border-b border-white/10">
+          <div class="flex items-center gap-2">
+            <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 100-6 3 3 0 000 6z"></path></svg>
+            <h3 class="text-sm font-bold text-white tracking-wide">Audio Guidance & Environmental Transcripts</h3>
+          </div>
+          <div class="flex items-center gap-2">
+            <span id="transcriptCountBadge" class="text-xs font-mono px-2 py-0.5 rounded-full bg-white/10 text-slate-300">3 entries</span>
+            <button onclick="clearTranscript()" class="text-xs font-mono text-slate-400 hover:text-white px-2 py-1 rounded bg-white/5 border border-white/10">Clear</button>
+          </div>
+        </div>
+
+        <!-- Scrollable Feed -->
+        <div id="transcriptFeed" class="flex-1 flex flex-col gap-2 overflow-y-auto max-h-[320px] pr-1">
+          <!-- Populated by JavaScript -->
+        </div>
+      </div>
+
+      <!-- System Metrics Cards (5 Cols) -->
+      <div class="lg:col-span-5 grid grid-cols-2 gap-3">
+        
+        <div class="glass p-4 rounded-xl border border-cyan-500/20 flex flex-col justify-between">
+          <div class="text-[10px] font-mono text-slate-400 flex items-center justify-between">
+            <span>DETECTIONS</span>
+            <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+          </div>
+          <div id="metricDetections" class="text-2xl font-bold font-mono text-white mt-2">0</div>
+          <div class="text-[10px] text-cyan-300/80 font-mono">Real-time object bounding</div>
+        </div>
+
+        <div class="glass p-4 rounded-xl border border-purple-500/20 flex flex-col justify-between">
+          <div class="text-[10px] font-mono text-slate-400 flex items-center justify-between">
+            <span>OCR CONFIDENCE</span>
+            <span class="w-2 h-2 rounded-full bg-purple-400"></span>
+          </div>
+          <div id="metricOcr" class="text-2xl font-bold font-mono text-purple-300 mt-2">96%</div>
+          <div class="text-[10px] text-purple-300/80 font-mono">Pytesseract Engine</div>
+        </div>
+
+        <div class="glass p-4 rounded-xl border border-emerald-500/20 flex flex-col justify-between">
+          <div class="text-[10px] font-mono text-slate-400 flex items-center justify-between">
+            <span>ACTIVE WAYPOINT</span>
+            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+          </div>
+          <div id="metricWaypoint" class="text-lg font-bold font-mono text-emerald-300 mt-2">WP-102</div>
+          <div class="text-[10px] text-emerald-300/80 font-mono">Floor 2 Main Hallway</div>
+        </div>
+
+        <div class="glass p-4 rounded-xl border border-blue-500/20 flex flex-col justify-between">
+          <div class="text-[10px] font-mono text-slate-400 flex items-center justify-between">
+            <span>INFERENCE LATENCY</span>
+            <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+          </div>
+          <div id="metricLatency" class="text-2xl font-bold font-mono text-blue-300 mt-2">124 ms</div>
+          <div class="text-[10px] text-blue-300/80 font-mono">Sub-second audio delivery</div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Footer with Hardcoded Team Manifest & Institutional Standard -->
+  <footer class="glass border-t border-white/10 mt-10 px-6 py-6 z-20">
+    <div class="max-w-[1720px] mx-auto flex flex-col gap-5">
+      
+      <div class="flex items-center justify-between flex-wrap gap-4 pb-4 border-b border-white/10">
+        <div>
+          <h4 class="text-sm font-bold text-white tracking-wide">VisionCore — Environmental Awareness & Navigation Assistant</h4>
+          <p class="text-xs text-slate-400">Department of Computer Science & Engineering (AIML) • AMC Engineering College (Autonomous), Bengaluru</p>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap text-[11px] font-mono">
+          <span class="px-2.5 py-1 rounded-md bg-blue-500/10 text-blue-300 border border-blue-500/20">Python 3.10+</span>
+          <span class="px-2.5 py-1 rounded-md bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">FastAPI</span>
+          <span class="px-2.5 py-1 rounded-md bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">OpenCV 4.9</span>
+          <span class="px-2.5 py-1 rounded-md bg-purple-500/10 text-purple-300 border border-purple-500/20">gTTS + Narakeet</span>
+          <span class="px-2.5 py-1 rounded-md bg-slate-500/10 text-slate-300 border border-white/10">Next.js 14</span>
+        </div>
+      </div>
+
+      <!-- Hardcoded Team Manifest -->
+      <div>
+        <div class="text-[11px] font-mono text-slate-400 uppercase tracking-wider mb-2 font-bold">PROJECT ARCHITECTS & ENGINEERING TEAM</div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+          <div class="p-3 rounded-xl bg-white/5 border border-cyan-500/30 flex flex-col">
+            <span class="text-xs font-bold text-white">1. P Vishal Ravi</span>
+            <span class="text-[11px] font-mono text-cyan-400">1AM24CI101</span>
+            <span class="text-[10px] text-slate-400 italic mt-0.5">Lead Architect & AI/ML Engineer</span>
+          </div>
+          <div class="p-3 rounded-xl bg-white/5 border border-purple-500/30 flex flex-col">
+            <span class="text-xs font-bold text-white">2. Sagar J</span>
+            <span class="text-[11px] font-mono text-purple-400">1AM24CI135</span>
+            <span class="text-[10px] text-slate-400 italic mt-0.5">Full-Stack & Backend Lead</span>
+          </div>
+          <div class="p-3 rounded-xl bg-white/5 border border-emerald-500/30 flex flex-col">
+            <span class="text-xs font-bold text-white">3. R Harivishnu</span>
+            <span class="text-[11px] font-mono text-emerald-400">1AM24AI083</span>
+            <span class="text-[10px] text-slate-400 italic mt-0.5">UI/UX & Frontend Specialist</span>
+          </div>
+          <div class="p-3 rounded-xl bg-white/5 border border-orange-500/30 flex flex-col">
+            <span class="text-xs font-bold text-white">4. Abdur Rehman</span>
+            <span class="text-[11px] font-mono text-orange-400">1AM24CI002</span>
+            <span class="text-[10px] text-slate-400 italic mt-0.5">Systems Integration & Data Pipeline Engineer</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="text-center text-xs text-slate-500 pt-2 border-t border-white/5">
+        AMC Engineering College (Autonomous), Department of CSE (AIML) • HackAttack AMCEC 2024 Track 3
+      </div>
+
+    </div>
+  </footer>
+
+  <!-- Interactive JavaScript Engine -->
+  <script>
+    let currentVoiceEnabled = true;
+    let currentAudioEngine = 'gtts';
+    let transcriptItems = [
+      { type: 'system', text: 'VisionCore Waypoint Engine initialized — AMC Engineering College CSE(AIML)', time: '13:00:00' },
+      { type: 'waypoint', text: 'Current Position Anchored: WP-102 (Central Corridor Junction North)', time: '13:00:01' },
+      { type: 'system', text: 'Topological Radar online. Awaiting accessibility scenario trigger.', time: '13:00:02' }
+    ];
+
+    // Clock
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('liveClock').textContent = now.toTimeString().slice(0, 8);
+      document.getElementById('liveDate').textContent = now.toLocaleDateString('en-GB', {
+        weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
+      });
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // Voice Synthesis
+    function speak(text) {
+      if (!currentVoiceEnabled || !('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.05;
+      utterance.pitch = 1.0;
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function toggleVoice() {
+      currentVoiceEnabled = !currentVoiceEnabled;
+      const btn = document.getElementById('voiceToggleBtn');
+      const text = document.getElementById('voiceStatusText');
+      if (currentVoiceEnabled) {
+        text.textContent = 'VOICE ON';
+        btn.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-950/40 border border-cyan-800/60 text-xs font-mono text-cyan-300';
+      } else {
+        text.textContent = 'VOICE MUTED';
+        btn.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono text-slate-400';
+        window.speechSynthesis.cancel();
+      }
+    }
+
+    function setEngine(engine) {
+      currentAudioEngine = engine;
+      document.getElementById('selectedEngineBadge').textContent = engine.toUpperCase() + ' ACTIVE';
+      if (engine === 'gtts') {
+        document.getElementById('btnGtts').className = 'p-2 rounded-lg bg-cyan-500/15 border border-cyan-400 text-cyan-200 text-left';
+        document.getElementById('btnNarakeet').className = 'p-2 rounded-lg bg-white/5 border border-white/10 text-slate-400 text-left hover:text-white';
+        addTranscript('system', 'TTS Engine set to gTTS (Google Core MP3)');
+      } else {
+        document.getElementById('btnNarakeet').className = 'p-2 rounded-lg bg-purple-500/15 border border-purple-400 text-purple-200 text-left';
+        document.getElementById('btnGtts').className = 'p-2 rounded-lg bg-white/5 border border-white/10 text-slate-400 text-left hover:text-white';
+        addTranscript('system', 'TTS Engine set to Narakeet (Mickey Voice Stream)');
+      }
+    }
+
+    function addTranscript(type, text) {
+      const now = new Date();
+      const timeStr = now.toTimeString().slice(0, 8);
+      transcriptItems.unshift({ type, text, time: timeStr });
+      renderTranscript();
+    }
+
+    function renderTranscript() {
+      const feed = document.getElementById('transcriptFeed');
+      feed.innerHTML = '';
+      transcriptItems.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'p-2.5 rounded-xl border flex items-start gap-2.5 text-xs font-mono transition-all';
+        
+        let border = 'border-white/10 bg-white/5 text-slate-200';
+        let badge = 'SYS';
+        let badgeColor = 'bg-slate-700 text-slate-200';
+
+        if (item.type === 'audio') {
+          border = 'border-cyan-500/30 bg-cyan-950/20 text-cyan-100';
+          badge = 'VOICE';
+          badgeColor = 'bg-cyan-900/60 text-cyan-300 border border-cyan-700/60';
+        } else if (item.type === 'alert') {
+          border = 'border-red-500/30 bg-red-950/20 text-red-100';
+          badge = 'ALERT';
+          badgeColor = 'bg-red-900/60 text-red-300 border border-red-700/60';
+        } else if (item.type === 'waypoint') {
+          border = 'border-purple-500/30 bg-purple-950/20 text-purple-100';
+          badge = 'WAYPOINT';
+          badgeColor = 'bg-purple-900/60 text-purple-300 border border-purple-700/60';
+        }
+
+        div.className += ' ' + border;
+        div.innerHTML = `
+          <span class="text-[10px] text-slate-500 mt-0.5">${item.time}</span>
+          <span class="text-[9px] px-1.5 py-0.2 rounded font-bold ${badgeColor}">${badge}</span>
+          <span class="flex-1 leading-relaxed">${item.text}</span>
+        `;
+        feed.appendChild(div);
+      });
+      document.getElementById('transcriptCountBadge').textContent = transcriptItems.length + ' entries';
+    }
+
+    function clearTranscript() {
+      transcriptItems = [];
+      renderTranscript();
+    }
+
+    // Render Bounding Boxes on the Camera viewport
+    function renderBoundingBoxes(boxes) {
+      const svg = document.getElementById('boundingBoxSvg');
+      svg.innerHTML = '';
+      const w = svg.clientWidth || 640;
+      const h = svg.clientHeight || 320;
+
+      boxes.forEach((box, i) => {
+        const x = (box.x / 640) * w;
+        const y = (box.y / 480) * h;
+        const bw = (box.w / 640) * w;
+        const bh = (box.h / 480) * h;
+        const color = box.color || '#06b6d4';
+        const isHigh = box.priority === 'HIGH';
+
+        // Bounding rect
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', x);
+        rect.setAttribute('y', y);
+        rect.setAttribute('width', bw);
+        rect.setAttribute('height', bh);
+        rect.setAttribute('fill', color);
+        rect.setAttribute('fill-opacity', isHigh ? '0.12' : '0.05');
+        rect.setAttribute('stroke', color);
+        rect.setAttribute('stroke-width', isHigh ? '2.5' : '1.5');
+        rect.setAttribute('rx', '4');
+        if (isHigh) rect.setAttribute('stroke-dasharray', '6 3');
+        svg.appendChild(rect);
+
+        // Label pill
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('transform', `translate(${x}, ${Math.max(14, y - 20)})`);
+        
+        const labelW = Math.max(100, box.label.length * 8 + (box.anchor ? 70 : 40));
+        const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        bgRect.setAttribute('x', 0);
+        bgRect.setAttribute('y', 0);
+        bgRect.setAttribute('width', labelW);
+        bgRect.setAttribute('height', 18);
+        bgRect.setAttribute('rx', 3);
+        bgRect.setAttribute('fill', 'rgba(3,7,18,0.92)');
+        bgRect.setAttribute('stroke', color);
+        bgRect.setAttribute('stroke-width', 1);
+        g.appendChild(bgRect);
+
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', 6);
+        text.setAttribute('y', 13);
+        text.setAttribute('fill', '#ffffff');
+        text.setAttribute('font-size', '10');
+        text.setAttribute('font-family', 'monospace');
+        text.setAttribute('font-weight', 'bold');
+        text.textContent = `${box.label.toUpperCase()} ${Math.round(box.confidence * 100)}%`;
+        g.appendChild(text);
+
+        if (box.anchor) {
+          const anchorText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          anchorText.setAttribute('x', box.label.length * 8 + 36);
+          anchorText.setAttribute('y', 13);
+          anchorText.setAttribute('fill', isHigh ? '#f87171' : '#38bdf8');
+          anchorText.setAttribute('font-size', '9');
+          anchorText.setAttribute('font-family', 'monospace');
+          anchorText.textContent = `[${box.anchor}]`;
+          g.appendChild(anchorText);
+        }
+
+        svg.appendChild(g);
+      });
+    }
+
+    // Scenarios Executor
+    function triggerScenario(name) {
+      document.getElementById('cameraIdlePlaceholder').style.display = 'none';
+      const badge = document.getElementById('activeScenarioBadge');
+
+      if (name === 'washroom') {
+        badge.textContent = 'SCENARIO: FINDING WASHROOM';
+        badge.className = 'px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-500 text-[10px] font-bold';
+
+        // Update HUD
+        document.getElementById('hudTargetNodeBadge').textContent = 'WP-105';
+        document.getElementById('hudTargetNodeName').textContent = 'Accessible Restroom & Facilities';
+        document.getElementById('hudDistanceValue').innerHTML = '3.8 <span class="text-xs font-normal">meters</span>';
+        document.getElementById('hudWalkingTime').innerHTML = '~3.5 <span class="text-xs font-normal">sec</span>';
+        document.getElementById('hudClockFaceBadge').textContent = "1 O'CLOCK";
+        document.getElementById('hudTurnInstruction').textContent = 'Advance 3.5 meters forward, then turn 90° right at WP-104 into accessible restroom.';
+        
+        // Corridor
+        const cb = document.getElementById('corridorBanner');
+        cb.className = 'p-3 rounded-xl bg-emerald-950/20 border border-emerald-500/30';
+        document.getElementById('corridorStatusTitle').textContent = 'CORRIDOR: CLEAR';
+        document.getElementById('corridorStatusTitle').className = 'text-xs font-mono font-bold text-emerald-400 mb-0.5';
+        document.getElementById('corridorObstacleCount').textContent = '0 hazards';
+        document.getElementById('corridorManeuverText').textContent = 'Corridor path is unobstructed. Maintain steady forward vector.';
+
+        // Radar
+        document.getElementById('radarRoutePolyline').setAttribute('points', '140,145 140,80 230,80');
+        document.getElementById('radarRoutePolyline').setAttribute('stroke', '#06b6d4');
+        document.getElementById('radarObstacleGroup').style.display = 'none';
+
+        // Camera Feed
+        renderBoundingBoxes([
+          { label: 'washroom_sign', confidence: 0.94, x: 340, y: 70, w: 160, h: 70, color: '#06b6d4', priority: 'MEDIUM', anchor: 'WP-104' },
+          { label: 'corridor', confidence: 0.89, x: 20, y: 160, w: 600, h: 280, color: '#94a3b8', priority: 'LOW', anchor: 'HALLWAY' },
+          { label: 'door', confidence: 0.84, x: 460, y: 120, w: 120, h: 240, color: '#10b981', priority: 'MEDIUM', anchor: 'WP-105' }
+        ]);
+
+        document.getElementById('feedDetectionCount').textContent = '3';
+        document.getElementById('feedAnchorText').textContent = 'WP-104 ("WASHROOM ->")';
+        document.getElementById('metricDetections').textContent = '3';
+        document.getElementById('metricOcr').textContent = '96%';
+
+        const spokenText = "Current location: Corridor Junction WP-102. Waypoint anchor detected: Washroom Sign 3.2 meters ahead at 1 o'clock. Advance 3.5 meters forward, then turn 90 degrees right into the accessible restroom.";
+        addTranscript('waypoint', 'Visual Anchor matched: WP-104 ("WASHROOM ->") at 3.2m');
+        addTranscript('audio', spokenText);
+        speak(spokenText);
+
+      } else if (name === 'signs') {
+        badge.textContent = 'SCENARIO: READING SIGNS';
+        badge.className = 'px-2 py-0.5 rounded-full bg-purple-950 text-purple-300 border border-purple-500 text-[10px] font-bold';
+
+        // Update HUD
+        document.getElementById('hudTargetNodeBadge').textContent = 'WP-103';
+        document.getElementById('hudTargetNodeName').textContent = 'Room 204 - AIML Innovation & Robotics Lab';
+        document.getElementById('hudDistanceValue').innerHTML = '3.5 <span class="text-xs font-normal">meters</span>';
+        document.getElementById('hudWalkingTime').innerHTML = '~3.2 <span class="text-xs font-normal">sec</span>';
+        document.getElementById('hudClockFaceBadge').textContent = "9 O'CLOCK";
+        document.getElementById('hudTurnInstruction').textContent = 'Turn 90° left into Room 204 AI Lab.';
+
+        // Radar
+        document.getElementById('radarRoutePolyline').setAttribute('points', '140,145 45,145');
+        document.getElementById('radarRoutePolyline').setAttribute('stroke', '#8b5cf6');
+        document.getElementById('radarObstacleGroup').style.display = 'none';
+
+        // Corridor
+        const cb = document.getElementById('corridorBanner');
+        cb.className = 'p-3 rounded-xl bg-emerald-950/20 border border-emerald-500/30';
+        document.getElementById('corridorStatusTitle').textContent = 'CORRIDOR: CLEAR';
+        document.getElementById('corridorStatusTitle').className = 'text-xs font-mono font-bold text-emerald-400 mb-0.5';
+        document.getElementById('corridorObstacleCount').textContent = '0 hazards';
+        document.getElementById('corridorManeuverText').textContent = 'Lateral corridor to Room 204 is clear.';
+
+        // Camera Feed
+        renderBoundingBoxes([
+          { label: 'text_sign', confidence: 0.97, x: 50, y: 50, w: 180, h: 80, color: '#8b5cf6', priority: 'MEDIUM', anchor: 'WP-103' },
+          { label: 'exit_sign', confidence: 0.96, x: 280, y: 30, w: 160, h: 70, color: '#ef4444', priority: 'MEDIUM', anchor: 'WP-106' }
+        ]);
+
+        document.getElementById('feedDetectionCount').textContent = '2';
+        document.getElementById('feedAnchorText').textContent = 'WP-103 ("ROOM 204"), WP-106 ("EXIT")';
+        document.getElementById('metricDetections').textContent = '2';
+        document.getElementById('metricOcr').textContent = '98%';
+
+        const spokenText = "Topological orientation verified at Node WP-102. Waypoint WP-103, Room 204 AIML Lab, is 3.5 meters to your left at 9 o'clock. Emergency Fire Exit WP-106 is straight ahead, 12 meters along North corridor.";
+        addTranscript('waypoint', 'OCR Visual Anchors confirmed: WP-103 (Room 204) and WP-106 (Exit)');
+        addTranscript('audio', spokenText);
+        speak(spokenText);
+
+      } else if (name === 'obstacles') {
+        badge.textContent = 'SCENARIO: OBSTACLE AWARENESS';
+        badge.className = 'px-2 py-0.5 rounded-full bg-red-950 text-red-300 border border-red-500 text-[10px] font-bold';
+
+        // Update HUD
+        document.getElementById('hudTargetNodeBadge').textContent = 'WP-104';
+        document.getElementById('hudTargetNodeName').textContent = 'Washroom Access Junction (Obstructed)';
+        document.getElementById('hudDistanceValue').innerHTML = '6.0 <span class="text-xs font-normal">meters</span>';
+        document.getElementById('hudWalkingTime').innerHTML = '~5.5 <span class="text-xs font-normal">sec</span>';
+        document.getElementById('hudClockFaceBadge').textContent = "12 O'CLOCK";
+        document.getElementById('hudTurnInstruction').textContent = 'Straight ahead blocked by chair at 1.1m. Shift 0.8m left to bypass.';
+
+        // Radar
+        document.getElementById('radarRoutePolyline').setAttribute('points', '140,145 140,80');
+        document.getElementById('radarRoutePolyline').setAttribute('stroke', '#f97316');
+        document.getElementById('radarObstacleGroup').style.display = 'block';
+
+        // Corridor Banner
+        const cb = document.getElementById('corridorBanner');
+        cb.className = 'p-3 rounded-xl bg-red-950/30 border border-red-500/40';
+        document.getElementById('corridorStatusTitle').textContent = 'CORRIDOR: OBSTRUCTED';
+        document.getElementById('corridorStatusTitle').className = 'text-xs font-mono font-bold text-red-400 mb-0.5';
+        document.getElementById('corridorObstacleCount').textContent = '3 detected';
+        document.getElementById('corridorManeuverText').textContent = 'Shift 0.8 meters LEFT to clear chair at 1.1m, then resume vector.';
+
+        // Camera Feed
+        renderBoundingBoxes([
+          { label: 'chair', confidence: 0.92, x: 230, y: 260, w: 130, h: 160, color: '#ef4444', priority: 'HIGH', anchor: 'COLLISION' },
+          { label: 'table', confidence: 0.85, x: 30, y: 230, w: 140, h: 120, color: '#f97316', priority: 'LOW', anchor: 'CLEAR' },
+          { label: 'person', confidence: 0.90, x: 420, y: 100, w: 90, h: 260, color: '#10b981', priority: 'MEDIUM', anchor: 'DYNAMIC' }
+        ]);
+
+        document.getElementById('feedDetectionCount').textContent = '3';
+        document.getElementById('feedAnchorText').textContent = 'HAZARD INTERSECT';
+        document.getElementById('metricDetections').textContent = '3';
+        document.getElementById('metricOcr').textContent = 'N/A';
+
+        const spokenText = "Caution! Waypoint corridor obstructed. Chair detected 1.1 meters directly ahead on your travel line. Shift 0.8 meters left to bypass, then continue forward to Waypoint WP-104.";
+        addTranscript('alert', 'HAZARD ALERT: Chair intersecting travel line at 1.1m — Shift 0.8m left to bypass');
+        addTranscript('audio', spokenText);
+        speak(spokenText);
+      }
+    }
+
+    function setDestination(scen) {
+      triggerScenario(scen);
+    }
+
+    // Initialize with default state
+    renderTranscript();
+  </script>
+</body>
+</html>
